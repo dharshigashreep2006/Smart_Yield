@@ -234,11 +234,27 @@ def predict_section():
                     "Pesticide": pest
                 }
                 st.session_state["last_prediction"] = float(pred)
-
                 st.markdown(
-                    f"<div style='background-color:rgba(255,255,255,0.2);padding:15px;border-radius:10px;text-align:center;color:white;font-weight:bold;font-size:22px;'>🌾 Predicted Crop Yield: {pred:.2f} tons/hectare</div>",
+                    f"""
+                    <div style="
+                        background-color: rgba(0, 128, 0, 0.4);
+                        padding: 20px;
+                        border-radius: 15px;
+                        text-align: center;
+                        color: white;
+                        font-weight: bold;
+                        font-size: 24px;
+                        box-shadow: 0px 0px 10px rgba(0,255,0,0.3);
+                        border: 1px solid rgba(255,255,255,0.2);
+                        ">
+                        🌾 Predicted Crop Yield: {pred:.2f} tons/hectare
+                    </div>
+                    """,
                     unsafe_allow_html=True
-                )
+)
+
+
+                
             except Exception as e:
                 st.error(str(e))
 
@@ -406,7 +422,7 @@ def crop_suggestion_section():
 
         # If no matching records, show global top crops
         if filt.empty:
-            st.info("No exact data for your selection, showing top-performing crops across all regions instead.")
+            st.info("No crops found for your result, showing top-performing crops across all regions instead.")
             filt = df.copy()
 
         # Calculate top crops
