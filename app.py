@@ -220,21 +220,93 @@ def predict_section():
             df_in = make_input(crop, year, season, state, area, prod, rain, fert, pest)
             try:
                 pred = model.predict(df_in)[0]
-                st.markdown(f"<div style='background-color:rgba(255,255,255,0.2);padding:15px;border-radius:10px;text-align:center;color:white;font-weight:bold;font-size:22px;'>🌾 Predicted Crop Yield: {pred:.2f} tons/hectare</div>", unsafe_allow_html=True)
+
+                # 🟢 Save prediction and inputs for report section
+                st.session_state["last_input"] = {
+                    "Crop": crop,
+                    "Crop Year": year,
+                    "Season": season,
+                    "State": state,
+                    "Area": area,
+                    "Production": prod,
+                    "Annual Rainfall": rain,
+                    "Fertilizer": fert,
+                    "Pesticide": pest
+                }
+                st.session_state["last_prediction"] = float(pred)
+
+                st.markdown(
+                    f"<div style='background-color:rgba(255,255,255,0.2);padding:15px;border-radius:10px;text-align:center;color:white;font-weight:bold;font-size:22px;'>🌾 Predicted Crop Yield: {pred:.2f} tons/hectare</div>",
+                    unsafe_allow_html=True
+                )
             except Exception as e:
                 st.error(str(e))
 
+
 # ------------------ REPORT (unchanged placeholder, you can keep CSV/PDF logic) ------------------
+# ------------------ REPORT (UPDATED: now uses last prediction & allows CSV + PDF) ------------------
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+
 def report_section():
     st.header("📄 Download Report")
-    # If a previous prediction was made, you can adapt this to output that result
-    sample = pd.DataFrame([{
-        "Crop":"Arecanut","Season":"Autumn","State":"Andhra Pradesh","Crop Year":2023,
-        "Area":1,"Production":1,"Annual Rainfall":500
-    }])
-    st.dataframe(sample)
-    csv = sample.to_csv(index=False).encode()
-    st.download_button("📥 Download CSV", csv, "yield_report.csv", "text/csv")
+
+    # Check if prediction and inputs exist
+    if "last_input" not in st.session_state or "last_prediction" not in st.session_state:
+        st.warning("Please make a prediction first in the 'Predict Yield' section.")
+        return
+
+    input_data = st.session_state["last_input"]
+    predicted_yield = st.session_state["last_prediction"]
+
+    # Display result summary
+    st.markdown(
+        f"""
+        <div style='background-color:rgba(255,255,255,0.2);padding:15px;border-radius:10px;text-align:center;color:white;font-weight:bold;font-size:20px;'>
+        🌾 <b>Predicted Crop Yield:</b> {predicted_yield:.2f} tons/hectare
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
+
+    # Prepare report data
+    report_df = pd.DataFrame([input_data])
+    report_df["Predicted_Yield"] = predicted_yield
+
+    # CSV Download
+    csv_data = report_df.to_csv(index=False).encode("utf-8")
+    st.download_button(
+        label="📥 Download Report (CSV)",
+        data=csv_data,
+        file_name="yield_report.csv",
+        mime="text/csv"
+    )
+
+    # PDF Download
+    pdf_buffer = io.BytesIO()
+    c = canvas.Canvas(pdf_buffer, pagesize=letter)
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(200, 750, "Smart Crop Yield Prediction Report")
+    c.setFont("Helvetica", 12)
+    c.drawString(50, 710, f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+
+    y_position = 670
+    for key, value in input_data.items():
+        c.drawString(50, y_position, f"{key}: {value}")
+        y_position -= 20
+
+    c.drawString(50, y_position - 10, f"Predicted Yield: {predicted_yield:.2f} tons/hectare")
+    c.showPage()
+    c.save()
+
+    pdf_buffer.seek(0)
+    st.download_button(
+        label="📘 Download Report (PDF)",
+        data=pdf_buffer,
+        file_name="yield_report.pdf",
+        mime="application/pdf"
+    )
+
 
 # ------------------ VISUALIZATION (REPLACED - now like chit.py) ------------------
 def viz_section():
