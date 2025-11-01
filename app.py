@@ -378,73 +378,53 @@ def viz_section():
             pass
 
 # ------------------ CROP SUGGESTION HELPER (REPLACED: same logic as chit.py sidebar but as 4th section) ------------------
+# ------------------ CROP SUGGESTION HELPER (improved: no fallback sliders or messages) ------------------
 def crop_suggestion_section():
-    st.header("🌿 Crop Suggestion Helper (data-driven + fallback rules)")
+    st.header("🌿 Crop Suggestion Helper")
+
     df, fname = load_any_dataset()
-    # Inputs (same UI feel as chit.py sidebar but placed here)
     if df is None:
-        st.info("No dataset found. Crop suggestions will use rule-based fallback.")
-        selected_state = None
-        selected_season = None
-    else:
-        # Try to present dropdowns for State/Season if columns exist
-        if 'State' in df.columns:
-            selected_state = st.selectbox("Select State", options=["All"] + sorted(df['State'].dropna().unique().tolist()))
-        else:
-            selected_state = "All"
-        if 'Season' in df.columns:
-            selected_season = st.selectbox("Select Season", options=["All"] + sorted(df['Season'].dropna().unique().tolist()))
-        else:
-            selected_season = "All"
+        st.warning("Dataset not found. Please upload a valid crop yield dataset.")
+        return
+
+    # Select filters
+    states = sorted(df['State'].dropna().unique().tolist()) if 'State' in df.columns else []
+    seasons = sorted(df['Season'].dropna().unique().tolist()) if 'Season' in df.columns else []
+
+    col1, col2 = st.columns(2)
+    with col1:
+        selected_state = st.selectbox("Select State", options=["All"] + states)
+    with col2:
+        selected_season = st.selectbox("Select Season", options=["All"] + seasons)
 
     if st.button("🔍 Suggest Best Crops"):
-        # If dataset present and has required columns, provide top crops by average yield for selected filters
-        if df is not None and {'Crop','Yield'}.issubset(set(df.columns)):
+        filt = df.copy()
+        if selected_state != "All" and 'State' in filt.columns:
+            filt = filt[filt['State'] == selected_state]
+        if selected_season != "All" and 'Season' in filt.columns:
+            filt = filt[filt['Season'] == selected_season]
+
+        # If no matching records, show global top crops
+        if filt.empty:
+            st.info("No exact data for your selection, showing top-performing crops across all regions instead.")
             filt = df.copy()
-            if selected_state and selected_state != "All" and 'State' in filt.columns:
-                filt = filt[filt['State'] == selected_state]
-            if selected_season and selected_season != "All" and 'Season' in filt.columns:
-                filt = filt[filt['Season'] == selected_season]
-            try:
-                top = filt.groupby('Crop')['Yield'].mean().sort_values(ascending=False).head(5)
-                if not top.empty:
-                    st.success("🌱 Top recommended crops based on historical average yield:")
-                    for i, (cname, val) in enumerate(top.items(), start=1):
-                        st.markdown(f"{i}. **{cname}** — Avg Yield: {val:.2f}")
-                else:
-                    st.warning("No matching records for the selected filters. Falling back to rule-based suggestions.")
-                    raise ValueError("No records")
-            except Exception:
-                # fallback to rule-based
-                st.info("Fallback rule-based suggestions:")
-                # Simple rule-based suggestions (same rules you used)
-                rain = st.number_input("If fallback: Enter Annual Rainfall (mm):", min_value=0.0, value=500.0)
-                fert = st.number_input("If fallback: Enter Fertilizer used (kg/ha):", min_value=0.0, value=100.0)
-                pest = st.number_input("If fallback: Enter Pesticide used (kg/ha):", min_value=0.0, value=10.0)
-                if rain < 300:
-                    suggestion = "Millets — Best for low rainfall areas!"
-                elif 300 <= rain < 700 and fert < 200:
-                    suggestion = "Wheat — Balanced for medium rainfall and low fertilizer."
-                elif fert >= 200 and pest < 50:
-                    suggestion = "Rice — Ideal under high fertilizer and medium rainfall."
-                else:
-                    suggestion = "Sugarcane — Thrives in high rainfall and high fertilizer input."
-                st.success(f"✅ Suggested Crop: **{suggestion}**")
+
+        # Calculate top crops
+        if 'Crop' in filt.columns and 'Yield' in filt.columns:
+            top_crops = (
+                filt.groupby('Crop')['Yield']
+                .mean()
+                .sort_values(ascending=False)
+                .head(5)
+                .reset_index()
+            )
+
+            st.success("🌱 Recommended Crops:")
+            for i, row in top_crops.iterrows():
+                st.markdown(f"**{i+1}. {row['Crop']}** — Avg Yield: {row['Yield']:.2f}")
         else:
-            # Dataset not present or missing required columns -> fallback rule-based
-            st.info("Dataset not found or missing 'Crop'/'Yield' columns. Using rule-based suggestions.")
-            rain = st.number_input("Enter Annual Rainfall (mm):", min_value=0.0, value=500.0)
-            fert = st.number_input("Enter Fertilizer used (kg/ha):", min_value=0.0, value=100.0)
-            pest = st.number_input("Enter Pesticide used (kg/ha):", min_value=0.0, value=10.0)
-            if rain < 300:
-                suggestion = "Millets — Best for low rainfall areas!"
-            elif 300 <= rain < 700 and fert < 200:
-                suggestion = "Wheat — Balanced for medium rainfall and low fertilizer."
-            elif fert >= 200 and pest < 50:
-                suggestion = "Rice — Ideal under high fertilizer and medium rainfall."
-            else:
-                suggestion = "Sugarcane — Thrives in high rainfall and high fertilizer input."
-            st.success(f"✅ Suggested Crop: **{suggestion}**")
+            st.error("Dataset does not contain required columns 'Crop' and 'Yield'.")
+
 
 # ------------------ Main app layout & routing (unchanged) ------------------
 def show_login():
